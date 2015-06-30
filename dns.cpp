@@ -20,6 +20,8 @@
 #include "dns.h"
 #include <algorithm>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
 #include <net/if.h>
 #include <sys/types.h>
 
