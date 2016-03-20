@@ -29,7 +29,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <syslog.h>
-#include "dns.h"
+#include "../dns.h"
 
 class Server;
 

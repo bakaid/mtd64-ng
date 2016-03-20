@@ -31,7 +31,7 @@
 #include <iostream>
 #include <netinet/in.h>
 #include <sys/time.h>
-#include "pool.h"
+#include "../pool.h"
 
 /**
  * An std::exception class for the Server.

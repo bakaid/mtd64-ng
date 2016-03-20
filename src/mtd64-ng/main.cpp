@@ -24,8 +24,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "pool.h"
-#include "dns.h"
+#include "../pool.h"
+#include "../dns.h"
 #include "server.h"
 
 Server* server;
