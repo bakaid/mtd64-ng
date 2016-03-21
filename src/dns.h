@@ -62,13 +62,13 @@ class DNSHeader
 		inline uint16_t arcount() const {return ntohs(arcount_);} /**< Getter for the Additional Resource Count. */
 		// setters
 		inline void id(uint16_t id_s) {id_ = htons(id_s);} /**< Setter for the DNS Query identifier. */
-		inline void qr(bool qr_s) {flags_ &= ~(1 << 15); flags_ |= ((uint16_t) qr_s) << 15;} /**< Setter for Query(0)/Response(1) flag. */
-		inline void opcode(uint8_t opcode_s) {flags_ &= ~(0xf << 11); flags_ |= ((uint16_t) opcode_s) << 11;} /**< Setter for Opcode. */
-		inline void aa(bool aa_s) {flags_ &= ~(1 << 10); flags_ |= ((uint16_t) aa_s) << 10;} /**< Setter for the Authoritative Answer flag. */
-		inline void tc(bool tc_s) {flags_ &= ~(1 << 9); flags_ |= ((uint16_t) tc_s) << 9;} /**< Setter for the Truncation flag. */
-		inline void rd(bool rd_s) {flags_ &= ~(1 << 8); flags_ |= ((uint16_t) rd_s) << 8;} /**< Setter for the Recursion Desired flag. */
-		inline void ra(bool ra_s) {flags_ &= ~(1 << 7); flags_ |= ((uint16_t) ra_s) << 7;} /**< Setter for the Recursion Avaliable flag. */
-		inline void rcode(uint8_t rcode_s) {flags_ &= ~(0xf); flags_ |= (uint16_t) rcode_s;} /**< Setter for the Response Code. */
+		inline void qr(bool qr_s) {flags_ &= htons(~(1 << 15)); flags_ |= htons(((uint16_t) qr_s) << 15);} /**< Setter for Query(0)/Response(1) flag. */
+		inline void opcode(uint8_t opcode_s) {flags_ &= htons(~(0xf << 11)); flags_ |= htons(((uint16_t) opcode_s) << 11);} /**< Setter for Opcode. */
+		inline void aa(bool aa_s) {flags_ &= htons(~(1 << 10)); flags_ |= htons(((uint16_t) aa_s) << 10);} /**< Setter for the Authoritative Answer flag. */
+		inline void tc(bool tc_s) {flags_ &= htons(~(1 << 9)); flags_ |= htons(((uint16_t) tc_s) << 9);} /**< Setter for the Truncation flag. */
+		inline void rd(bool rd_s) {flags_ &= htons(~(1 << 8)); flags_ |= htons(((uint16_t) rd_s) << 8);} /**< Setter for the Recursion Desired flag. */
+		inline void ra(bool ra_s) {flags_ &= htons(~(1 << 7)); flags_ |= htons(((uint16_t) ra_s) << 7);} /**< Setter for the Recursion Avaliable flag. */
+		inline void rcode(uint8_t rcode_s) {flags_ &= htons(~(0xf)); flags_ |= htons((uint16_t) rcode_s);} /**< Setter for the Response Code. */
 		inline void qdcount(uint16_t qdcount_s) {qdcount_ = htons(qdcount_s);} /**< Setter for the Question Count. */
 		inline void ancount(uint16_t ancount_s) {ancount_ = htons(ancount_s);} /**< Setter for the Answer Resource Count. */
 		inline void nscount(uint16_t nscount_s) {nscount_ = htons(nscount_s);} /**< Setter for the Authority Resource Count. */

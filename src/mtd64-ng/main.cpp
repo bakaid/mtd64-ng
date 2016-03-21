@@ -1,5 +1,3 @@
-#include <iostream>
-#include <cstring>
 /* mtd64-ng - a lightweight multithreaded C++11 DNS64 server
  * Based on MTD64 (https://github.com/Yoso89/MTD64)
  * Copyright (C) 2015  Daniel Bakai <bakaid@kszk.bme.hu>
@@ -18,7 +16,8 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
- 
+#include <iostream>
+#include <cstring>
 #include <signal.h>
 #include <syslog.h>
 #include <unistd.h>
