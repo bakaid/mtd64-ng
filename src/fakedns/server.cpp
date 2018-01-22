@@ -207,14 +207,14 @@ void Server::start() {
                     sender_slen,   *this};
         query();
       }
-
-      close(sock6fd);
     });
   }
 
   for (auto &thread : this->threads_) {
     thread.join();
   }
+
+  close(sock6fd);
 }
 
 void Server::stop() { this->stopped_ = true; }
