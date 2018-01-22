@@ -135,8 +135,6 @@ public:
   friend class Query;
 
 private:
-  std::vector<std::thread> threads_;            /**< Worker threads and associated contexts. */
-
   std::atomic<bool>
       stopped_; /**< Atomic variable used to thread-safely stop the pool. */
   
@@ -153,6 +151,8 @@ private:
   bool debug_; /**< Debug flag */
 
   struct in6_addr ipv6_; /**< Prefix used for generating AAAA records */
+  
+  std::vector<std::thread> threads_;            /**< Worker threads and associated contexts. */
 
   /**
    * Generate AAAA record

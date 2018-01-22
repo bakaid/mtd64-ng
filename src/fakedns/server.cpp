@@ -40,11 +40,7 @@ Server::Server() : stopped_{false}, port_{53}, num_threads_{10}, debug_{false} {
   inet_pton(AF_INET6, "2001:db8::", &ipv6_);
 }
 
-Server::~Server() {
-  for (auto &thread : this->threads_) {
-    thread.join();
-  }
-}
+Server::~Server() {}
 
 bool Server::loadConfig(const char *filename) {
   FILE *fp;
@@ -148,7 +144,17 @@ void Server::start() {
       int optval = 1;
       if (setsockopt(sock6fd, SOL_SOCKET, SO_REUSEADDR, &optval,
                      sizeof(optval)) != 0) {
-        throw ServerException{"Unable to set socket options"};
+        throw ServerException{
+            "Cannot set SO_REUSEADDR on socket: setsockopt failed"};
+      }
+
+      struct timeval timeout;
+      timeout.tv_sec = 1;
+      timeout.tv_usec = 0;
+      if (setsockopt(sock6fd, SOL_SOCKET, SO_RCVTIMEO,
+                     reinterpret_cast<const void *>(&timeout),
+                     sizeof(timeout))) {
+        throw ServerException{"Cannot set timeout: setsockopt failed"};
       }
 
       /* Binding socket */
@@ -184,6 +190,8 @@ void Server::start() {
             continue;
           } else if (errno == EINTR) {
             break;
+          } else if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            continue;
           } else {
             syslog(LOG_DAEMON | LOG_WARNING, "recvfrom() failure: %d (%s)",
                    errno, strerror(errno));
@@ -203,6 +211,10 @@ void Server::start() {
 
       close(sock6fd);
     });
+  }
+
+  for (auto &thread : this->threads_) {
+    thread.join();
   }
 }
 

@@ -17,10 +17,10 @@
  * USA.
  */
 #include "../dns.h"
-#include "../pool.h"
 #include "server.h"
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -69,17 +69,18 @@ int main() {
   srand(tv.tv_usec);
 
   /* Starting server*/
-  syslog(LOG_DAEMON | LOG_INFO, "Starting fakeDNS...");
+  syslog(LOG_DAEMON | LOG_WARNING, "Starting fakeDNS...");
+  server = new Server{}; // Creating new Server instance
   struct sigaction sact;
   memset(&sact, 0x00, sizeof(sact));
   sact.sa_handler = shutdown;
   sact.sa_flags = 0;
   sigaction(SIGTERM, &sact,
-            NULL);     // Registering SIGTERM handler for clean shutdown
-  server = new Server; // Creating new Server instance
+            NULL); // Registering SIGTERM handler for clean shutdown
   try {
     server->loadConfig("/etc/fakedns.conf"); // Loading server config
-    /* Setting logmask to suppress verbose output when not in debugging mode */
+    /* Setting logmask to suppress verbose output when not in debugging mode
+     */
     if (server->debug()) {
       setlogmask(LOG_UPTO(LOG_DEBUG));
     } else {
@@ -90,7 +91,8 @@ int main() {
     syslog(LOG_DAEMON | LOG_ERR, "%s", e.what());
   }
   delete server;
-  syslog(LOG_DAEMON | LOG_INFO, "Stopping fakeDNS..");
+  setlogmask(LOG_UPTO(LOG_DEBUG));
+  syslog(LOG_DAEMON | LOG_WARNING, "Stopping fakeDNS..");
   closelog(); // Opening syslog connection
   exit(EXIT_SUCCESS);
 }
