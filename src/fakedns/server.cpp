@@ -36,11 +36,15 @@ ServerException::ServerException(std::string what) : what_{what} {}
 
 const char *ServerException::what() const noexcept { return what_.c_str(); }
 
-Server::Server() : pool_{nullptr}, port_{53}, num_threads_{10}, debug_{false} {
+Server::Server() : stopped_{false}, port_{53}, num_threads_{10}, debug_{false} {
   inet_pton(AF_INET6, "2001:db8::", &ipv6_);
 }
 
-Server::~Server() { delete pool_; }
+Server::~Server() {
+  for (auto &thread : this->threads_) {
+    thread.join();
+  }
+}
 
 bool Server::loadConfig(const char *filename) {
   FILE *fp;
@@ -132,62 +136,77 @@ bool Server::loadConfig(const char *filename) {
 }
 
 void Server::start() {
-  /* Creating socket */
-  if ((sock6fd_ = socket(AF_INET6, SOCK_DGRAM, 0)) == -1) {
-    throw ServerException{"Unable to create server socket"};
-  }
-
-  /* Binding socket */
-  memset(&fakednssrv_addr_, 0x00, sizeof(fakednssrv_addr_));
-  fakednssrv_addr_.sin6_family = AF_INET6;   // Address family
-  fakednssrv_addr_.sin6_port = htons(port_); // UDP port number
-  fakednssrv_addr_.sin6_addr = in6addr_any;  // To any valid IP address
-  if (bind(sock6fd_, reinterpret_cast<struct sockaddr *>(&fakednssrv_addr_),
-           sizeof(fakednssrv_addr_)) == -1) {
-    std::stringstream ss;
-    ss << "Unable to bind server socket: " << strerror(errno);
-    throw ServerException{ss.str()};
-  }
-
-  /* Creating worker pool */
-  pool_ = new ThreadPool{static_cast<size_t>(num_threads_)};
-
-  /* Receving packets */
-  while (!pool_->isStopped()) {
-    struct sockaddr_in6 sender;
-    socklen_t sender_slen;
-    ssize_t recvlen;
-    char client_ip[INET6_ADDRSTRLEN];
-    uint8_t *buffer = new uint8_t[response_maxlength_];
-    sender_slen = sizeof(sender);
-    if ((recvlen = recvfrom(sock6fd_, buffer, response_maxlength_, 0,
-                            reinterpret_cast<struct sockaddr *>(&sender),
-                            &sender_slen)) <= 0) {
-      delete[] buffer;
-      if (errno == EMSGSIZE) {
-        syslog(LOG_DAEMON | LOG_WARNING,
-               "The received message from IPv6 client is longer than %hd "
-               "bytes. Ignored",
-               response_maxlength_);
-        continue;
-      } else if (errno == EINTR) {
-        break;
-      } else {
-        syslog(LOG_DAEMON | LOG_WARNING, "recvfrom() failure: %d (%s)", errno,
-               strerror(errno));
-        continue;
+  for (int i = 0; i < this->num_threads_; i++) {
+    threads_.emplace_back([this]() {
+      /* Creating socket */
+      int sock6fd;
+      if ((sock6fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1) {
+        throw ServerException{"Unable to create server socket"};
       }
-    }
-    inet_ntop(AF_INET6, &sender.sin6_addr, client_ip, INET6_ADDRSTRLEN);
-    syslog(LOG_DAEMON | LOG_INFO, "Received packet from [%s]:%hu, length %zd",
-           client_ip, ntohs(sender.sin6_port), recvlen);
 
-    pool_->addTask(Query{buffer, (size_t)recvlen, sender, sender_slen, *this});
+      /* Setting socket options */
+      int optval = 1;
+      if (setsockopt(sock6fd, SOL_SOCKET, SO_REUSEADDR, &optval,
+                     sizeof(optval)) != 0) {
+        throw ServerException{"Unable to set socket options"};
+      }
+
+      /* Binding socket */
+      struct sockaddr_in6 fakednssrv_addr;
+      memset(&fakednssrv_addr, 0x00, sizeof(fakednssrv_addr));
+      fakednssrv_addr.sin6_family = AF_INET6;         // Address family
+      fakednssrv_addr.sin6_port = htons(this->port_); // UDP port number
+      fakednssrv_addr.sin6_addr = in6addr_any;        // To any valid IP address
+      if (bind(sock6fd, reinterpret_cast<struct sockaddr *>(&fakednssrv_addr),
+               sizeof(fakednssrv_addr)) == -1) {
+        std::stringstream ss;
+        ss << "Unable to bind server socket: " << strerror(errno);
+        throw ServerException{ss.str()};
+      }
+
+      /* Receving packets */
+      std::vector<uint8_t> buffer(this->response_maxlength_);
+
+      while (!this->stopped_) {
+        struct sockaddr_in6 sender;
+        socklen_t sender_slen;
+        ssize_t recvlen;
+        char client_ip[INET6_ADDRSTRLEN];
+        sender_slen = sizeof(sender);
+        if ((recvlen = recvfrom(sock6fd, buffer.data(), response_maxlength_, 0,
+                                reinterpret_cast<struct sockaddr *>(&sender),
+                                &sender_slen)) <= 0) {
+          if (errno == EMSGSIZE) {
+            syslog(LOG_DAEMON | LOG_WARNING,
+                   "The received message from IPv6 client is longer than %hd "
+                   "bytes. Ignored",
+                   response_maxlength_);
+            continue;
+          } else if (errno == EINTR) {
+            break;
+          } else {
+            syslog(LOG_DAEMON | LOG_WARNING, "recvfrom() failure: %d (%s)",
+                   errno, strerror(errno));
+            continue;
+          }
+        }
+        inet_ntop(AF_INET6, &sender.sin6_addr, client_ip, INET6_ADDRSTRLEN);
+        syslog(LOG_DAEMON | LOG_INFO,
+               "Received packet from [%s]:%hu, length %zd", client_ip,
+               ntohs(sender.sin6_port), recvlen);
+
+        Query query{buffer.data(), static_cast<size_t>(recvlen),
+                    sock6fd,       sender,
+                    sender_slen,   *this};
+        query();
+      }
+
+      close(sock6fd);
+    });
   }
-  close(sock6fd_);
 }
 
-void Server::stop() { pool_->stop(); }
+void Server::stop() { this->stopped_ = true; }
 
 std::ostream &operator<<(std::ostream &os, const Server &server) {
   char buffer[1024];

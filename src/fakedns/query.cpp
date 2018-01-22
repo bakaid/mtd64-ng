@@ -27,9 +27,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-Query::Query(uint8_t *data, size_t len, struct sockaddr_in6 sender,
+Query::Query(uint8_t *data, size_t len, int sock6fd, struct sockaddr_in6 sender,
              socklen_t sender_slen, Server &server)
-    : data_{data}, len_{len}, sender_slen_{sender_slen}, server_{server} {
+    : data_{data}, len_{len}, sock6fd_{sock6fd},
+      sender_slen_{sender_slen}, server_{server} {
   sender_ = sender;
 }
 
@@ -46,7 +47,7 @@ Query::Query(Query &&rhs)
   rhs.data_ = nullptr;
 }
 
-Query::~Query() { delete[] data_; }
+Query::~Query() {}
 
 void Query::operator()() {
   DNSHeader *header = (DNSHeader *)data_;
@@ -143,7 +144,7 @@ void Query::operator()() {
         }
       }
       /* Send answer */
-      if (sendto(server_.sock6fd_, answer_data, answer_len, 0,
+      if (sendto(sock6fd_, answer_data, answer_len, 0,
                  (struct sockaddr *)&sender_, sizeof(sender_)) == -1) {
         syslog(LOG_DAEMON | LOG_ERR,
                "Can't send response: sendto failure: %d (%s)", errno,

@@ -24,12 +24,12 @@
 #ifndef SERVER_H_INCLUDED
 #define SERVER_H_INCLUDED
 
-#include "../pool.h"
 #include <atomic>
 #include <exception>
 #include <iostream>
 #include <netinet/in.h>
 #include <string>
+#include <thread>
 #include <sys/time.h>
 #include <vector>
 
@@ -135,12 +135,13 @@ public:
   friend class Query;
 
 private:
-  ThreadPool *pool_; /**< ThreadPool to process queries on multiple threads. */
+  std::vector<std::thread> threads_;            /**< Worker threads and associated contexts. */
 
-  int sock6fd_;                         /**< Server socket. */
-  struct sockaddr_in6 fakednssrv_addr_; /**< Server address. */
+  std::atomic<bool>
+      stopped_; /**< Atomic variable used to thread-safely stop the pool. */
+  
   uint16_t port_;                       /**< Server port. */
-  static const short int response_maxlength_ =
+  static const unsigned short int response_maxlength_ =
       512; /**< Maximum legth of the DNS response packet (UDP payload) */
 
   aaaaMode aaaa_mode_;      /**< AAAA behaviour */
