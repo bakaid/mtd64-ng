@@ -132,44 +132,43 @@ bool Server::loadConfig(const char *filename) {
 }
 
 void Server::start() {
+  /* Creating socket */
+  int sock6fd;
+  if ((sock6fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1) {
+    throw ServerException{"Unable to create server socket"};
+  }
+
+  /* Setting socket options */
+  int optval = 1;
+  if (setsockopt(sock6fd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) !=
+      0) {
+    throw ServerException{
+        "Cannot set SO_REUSEADDR on socket: setsockopt failed"};
+  }
+
+  struct timeval timeout;
+  timeout.tv_sec = 1;
+  timeout.tv_usec = 0;
+  if (setsockopt(sock6fd, SOL_SOCKET, SO_RCVTIMEO,
+                 reinterpret_cast<const void *>(&timeout), sizeof(timeout))) {
+    throw ServerException{"Cannot set timeout: setsockopt failed"};
+  }
+
+  /* Binding socket */
+  struct sockaddr_in6 fakednssrv_addr;
+  memset(&fakednssrv_addr, 0x00, sizeof(fakednssrv_addr));
+  fakednssrv_addr.sin6_family = AF_INET6;         // Address family
+  fakednssrv_addr.sin6_port = htons(this->port_); // UDP port number
+  fakednssrv_addr.sin6_addr = in6addr_any;        // To any valid IP address
+  if (bind(sock6fd, reinterpret_cast<struct sockaddr *>(&fakednssrv_addr),
+           sizeof(fakednssrv_addr)) == -1) {
+    std::stringstream ss;
+    ss << "Unable to bind server socket: " << strerror(errno);
+    throw ServerException{ss.str()};
+  }
+
   for (int i = 0; i < this->num_threads_; i++) {
-    threads_.emplace_back([this]() {
-      /* Creating socket */
-      int sock6fd;
-      if ((sock6fd = socket(AF_INET6, SOCK_DGRAM, 0)) == -1) {
-        throw ServerException{"Unable to create server socket"};
-      }
-
-      /* Setting socket options */
-      int optval = 1;
-      if (setsockopt(sock6fd, SOL_SOCKET, SO_REUSEADDR, &optval,
-                     sizeof(optval)) != 0) {
-        throw ServerException{
-            "Cannot set SO_REUSEADDR on socket: setsockopt failed"};
-      }
-
-      struct timeval timeout;
-      timeout.tv_sec = 1;
-      timeout.tv_usec = 0;
-      if (setsockopt(sock6fd, SOL_SOCKET, SO_RCVTIMEO,
-                     reinterpret_cast<const void *>(&timeout),
-                     sizeof(timeout))) {
-        throw ServerException{"Cannot set timeout: setsockopt failed"};
-      }
-
-      /* Binding socket */
-      struct sockaddr_in6 fakednssrv_addr;
-      memset(&fakednssrv_addr, 0x00, sizeof(fakednssrv_addr));
-      fakednssrv_addr.sin6_family = AF_INET6;         // Address family
-      fakednssrv_addr.sin6_port = htons(this->port_); // UDP port number
-      fakednssrv_addr.sin6_addr = in6addr_any;        // To any valid IP address
-      if (bind(sock6fd, reinterpret_cast<struct sockaddr *>(&fakednssrv_addr),
-               sizeof(fakednssrv_addr)) == -1) {
-        std::stringstream ss;
-        ss << "Unable to bind server socket: " << strerror(errno);
-        throw ServerException{ss.str()};
-      }
-
+    threads_.emplace_back([this, sock6fd]() {
       /* Receving packets */
       std::vector<uint8_t> buffer(this->response_maxlength_);
 
@@ -183,7 +182,7 @@ void Server::start() {
                                 reinterpret_cast<struct sockaddr *>(&sender),
                                 &sender_slen)) <= 0) {
           if (errno == EMSGSIZE) {
-            syslog(LOG_DAEMON | LOG_WARNING,
+            syslog(LOG_DAEMON | LOG_ERR,
                    "The received message from IPv6 client is longer than %hd "
                    "bytes. Ignored",
                    response_maxlength_);
@@ -193,8 +192,8 @@ void Server::start() {
           } else if (errno == EWOULDBLOCK || errno == EAGAIN) {
             continue;
           } else {
-            syslog(LOG_DAEMON | LOG_WARNING, "recvfrom() failure: %d (%s)",
-                   errno, strerror(errno));
+            syslog(LOG_DAEMON | LOG_ERR, "recvfrom() failure: %d (%s)", errno,
+                   strerror(errno));
             continue;
           }
         }
