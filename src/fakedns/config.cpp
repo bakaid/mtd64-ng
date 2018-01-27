@@ -114,7 +114,7 @@ bool Config::loadConfig(const char *filename) {
       while (*begin != '\0' && isspace(*begin))
         begin++;
 
-      if (sscanf(begin, "%hd", &start_cpu_) != 1 || start_cpu_ < 0) {
+      if (sscanf(begin, "%ld", &start_cpu_) != 1 || start_cpu_ < 0) {
         start_cpu_ = 1;
         syslog(LOG_WARNING, "Invalid start-cpu at line %d. Defaulting to 1\n",
                linecount);
