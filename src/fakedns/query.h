@@ -40,7 +40,7 @@ class Query {
 private:
   uint8_t *data_;              /**< The packet */
   size_t len_;                 /**< The length of the packet. */
-  int sock6fd_;                 /**< Socket to send on. */
+  int sock6fd_;                /**< Socket to send on. */
   struct sockaddr_in6 sender_; /**< The address of the sender of the packet. */
   socklen_t sender_slen_;      /**< The length of sender address. */
   Server &server_;             /**< The parent Server */

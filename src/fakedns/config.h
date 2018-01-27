@@ -18,11 +18,11 @@
  */
 
 /** @file
- *  @brief Header for the Server and related classes.
+ *  @brief Header for the Config and related classes.
  */
 
-#ifndef SERVER_H_INCLUDED
-#define SERVER_H_INCLUDED
+#ifndef CONFIG_H_INCLUDED
+#define CONFIG_H_INCLUDED
 
 #include <atomic>
 #include <exception>
@@ -33,12 +33,10 @@
 #include <thread>
 #include <vector>
 
-#include "config.h"
-
 /**
- * An std::exception class for the Server.
+ * An std::exception class for the ServerConfig.
  */
-class ServerException : public std::exception {
+class ConfigException : public std::exception {
 private:
   std::string what_; /**< Exception string */
 public:
@@ -46,7 +44,7 @@ public:
    * A constructor.
    * @param what the excpetion string
    */
-  ServerException(std::string what);
+  ConfigException(std::string what);
 
   /**
    * A getter for the exception string.
@@ -59,41 +57,36 @@ public:
  * Main Server class.
  * This class aggregates the server parameters and functions.
  */
-class Server {
-public:
+struct Config {
+  /**
+   * Enum for the server AAAA behaviour
+   */
+  enum aaaaMode {
+    YES,        /**< always has AAAA record */
+    NO,         /**< never has AAAA record */
+    PROBABILITY /**< has AAAA record with some PROBABILITY  */
+  };
+
+  uint16_t start_port_; /**< First server processes port. */
+
+  static const unsigned short int response_maxlength_ =
+      512; /**< Maximum legth of the DNS response packet (UDP payload) */
+
+  aaaaMode aaaa_mode_; /**< AAAA behaviour */
+
+  double aaaa_probability_; /**< AAAA probability when using PROBABILITY
+                               behaviour */
+
+  short int num_servers_; /**< Number of server processes to start */
+
+  long int start_cpu_;
+
+  bool debug_; /**< Debug flag */
+
   /**
    * Constructor.
    */
-  Server(const Config &config);
-
-  /**
-   * Destructor.
-   */
-  ~Server();
-
-  /**
-   * Copy constructor, explicitly deleted.
-   * The Server class can NOT be copied.
-   */
-  Server(const Server &) = delete;
-
-  /**
-   * Move constructor, explicitly deleted.
-   * The Server class can NOT be moved.
-   */
-  Server(Server &&) = delete;
-
-  /**
-   * Copy assignment operator, explicitly deleted.
-   * The Server class can NOT be copied.
-   */
-  Server &operator=(const Server &) = delete;
-
-  /**
-   * Move assignment operator, explicitly deleted.
-   * The Server class can NOT be moved.
-   */
-  Server &operator=(Server &&) = delete;
+  Config();
 
   /**
    * Function to load configuration file
@@ -103,41 +96,11 @@ public:
   bool loadConfig(const char *filename);
 
   /**
-   * Function to start the server
-   */
-  void start();
-
-  /**
-   * Function to start the server
-   */
-  void stop();
-
-  /**
    * std::ostream operator to display configuration values
    */
-  friend std::ostream &operator<<(std::ostream &, const Server &);
-
-  /**
-   * Query uses and can modify the Server (thread-safely).
-   */
-  friend class Query;
-
-private:
-  std::atomic<bool>
-      stopped_; /**< Atomic variable used to thread-safely stop the pool. */
-
-  Config config_; /**< Server configuration. */
-
-  struct in6_addr ipv6_; /**< Prefix used for generating AAAA records */
-
-  /**
-   * Generate AAAA record
-   * @param v4 the IPv4 address in network byte order (4 bytes)
-   * @param v6 the buffer to store the IPv6 address (at least 16 bytes)
-   */
-  void synth(const uint8_t *v4, uint8_t *v6);
+  friend std::ostream &operator<<(std::ostream &, const Config &);
 };
 
-std::ostream &operator<<(std::ostream &, const Server &);
+std::ostream &operator<<(std::ostream &, const Config &);
 
 #endif

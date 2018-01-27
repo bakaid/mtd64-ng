@@ -51,14 +51,14 @@ Query::~Query() {}
 
 void Query::operator()() {
   DNSHeader *header = (DNSHeader *)data_;
-  uint8_t answer_data[Server::response_maxlength_];
+  uint8_t answer_data[Config::response_maxlength_];
   size_t answer_len;
-  char buffer[Server::response_maxlength_];
+  char buffer[Config::response_maxlength_];
   uint8_t ip[4];
   if (header->qr() == 0 && header->opcode() == DNSHeader::OpCode::Query) {
     try {
       /* Parse the query */
-      DNSPacket packet{data_, len_, (size_t)server_.response_maxlength_};
+      DNSPacket packet{data_, len_, (size_t)Config::response_maxlength_};
       /* Parse the question label */
       packet.question_[0].name_.toString(buffer, sizeof(buffer));
       if (sscanf(buffer, "%hhu-%hhu-%hhu-%hhu.dns64perf.test.", ip, ip + 1,
@@ -113,9 +113,10 @@ void Query::operator()() {
         answer_len += 4;
       } else if (packet.question_[0].qtype() == QType::AAAA) {
         /* Add answer */
-        if (server_.aaaa_mode_ == Server::aaaaMode::YES ||
-            (server_.aaaa_mode_ == Server::aaaaMode::PROBABILITY &&
-             ((double)rand() / RAND_MAX) <= server_.aaaa_probability_)) {
+        if (server_.config_.aaaa_mode_ == Config::aaaaMode::YES ||
+            (server_.config_.aaaa_mode_ == Config::aaaaMode::PROBABILITY &&
+             ((double)rand() / RAND_MAX) <=
+                 server_.config_.aaaa_probability_)) {
           header->ancount(1);
           /* Add answer label */
           uint16_t *ptr =

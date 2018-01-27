@@ -17,20 +17,31 @@
  * USA.
  */
 #include "../dns.h"
+#include "config.h"
 #include "server.h"
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include <sched.h>
+#include <set>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <syslog.h>
 #include <unistd.h>
 
+std::set<pid_t> children;
 Server *server;
 
-/* Handler for SIGTERM signal */
-void shutdown(int singal) {
+/* Handlers for SIGTERM signal */
+void parent_shutdown(int /*singal*/) {
+  for (const auto &child : children) {
+    kill(child, SIGTERM);
+  }
+}
+
+void shutdown(int /*singal*/) {
   server->stop(); // Stopping server
 }
 
@@ -63,14 +74,87 @@ int main() {
   close(STDOUT_FILENO);
   close(STDERR_FILENO);
 
+  /* Loading config */
+  Config config;
+  try {
+    config.loadConfig("/etc/fakedns.conf"); // Loading server config
+    /* Setting logmask to suppress verbose output when not in debugging mode
+     */
+    if (config.debug_) {
+      setlogmask(LOG_UPTO(LOG_DEBUG));
+    } else {
+      setlogmask(LOG_UPTO(LOG_ERR));
+    }
+  } catch (std::exception &e) {
+    syslog(LOG_DAEMON | LOG_ERR, "%s", e.what());
+    exit(EXIT_FAILURE);
+  }
+
+  /* Getting number of available CPUs */
+  long int num_cpu = sysconf(_SC_NPROCESSORS_ONLN);
+  syslog(LOG_DAEMON | LOG_ERR, "Found %ld online CPUs", num_cpu);
+  if (config.start_cpu_ + config.num_servers_ >= num_cpu) {
+    syslog(LOG_DAEMON | LOG_ERR,
+           "Invalid configuration: only %ld CPUs available, cannot schedule "
+           "servers from CPU%ld to CPU%ld",
+           num_cpu, config.start_cpu_, config.start_cpu_ + config.num_servers_);
+    exit(EXIT_FAILURE);
+  }
+
+  /* Starting server child processes */
+  syslog(LOG_DAEMON | LOG_ERR, "Starting fakeDNS...");
+
+  int i;
+  for (i = 0; i < config.num_servers_; i++) {
+    pid = fork();
+    if (pid < 0) {
+      exit(EXIT_FAILURE);
+    } else if (pid == 0) {
+      break;
+    } else {
+      children.insert(pid);
+    }
+  }
+
+  /* The main process should wait for the child processes to stop */
+  if (pid > 0) {
+    struct sigaction sact;
+    memset(&sact, 0x00, sizeof(sact));
+    sact.sa_handler = parent_shutdown;
+    sact.sa_flags = 0;
+    sigaction(SIGTERM, &sact,
+              NULL); // Registering SIGTERM handler for clean shutdown
+
+    while (!children.empty()) {
+      pid_t child_pid = wait(NULL);
+      if (child_pid != -1) {
+        children.erase(child_pid);
+      }
+    }
+    syslog(LOG_DAEMON | LOG_ERR, "Stopping fakeDNS..");
+    exit(EXIT_SUCCESS);
+  }
+
+  /* Setting CPU affinity */
+  cpu_set_t mask;
+  CPU_ZERO(&mask);
+  long int cpu = config.start_cpu_ + i;
+  CPU_SET(cpu, &mask);
+  if (sched_setaffinity(0, sizeof(cpu_set_t), &mask) != 0) {
+    syslog(LOG_DAEMON | LOG_ERR, "Cannot set process affinity to CPU%ld", cpu);
+    exit(EXIT_FAILURE);
+  }
+
+  /* Setting port for this server */
+  config.start_port_ += i;
+
   /* Initializing RNG seed */
   struct timeval tv;
   gettimeofday(&tv, NULL);
   srand(tv.tv_usec);
 
-  /* Starting server*/
-  syslog(LOG_DAEMON | LOG_WARNING, "Starting fakeDNS...");
-  server = new Server{}; // Creating new Server instance
+  /* Starting server */
+  server = new Server{config}; // Creating new Server instance
   struct sigaction sact;
   memset(&sact, 0x00, sizeof(sact));
   sact.sa_handler = shutdown;
@@ -78,21 +162,11 @@ int main() {
   sigaction(SIGTERM, &sact,
             NULL); // Registering SIGTERM handler for clean shutdown
   try {
-    server->loadConfig("/etc/fakedns.conf"); // Loading server config
-    /* Setting logmask to suppress verbose output when not in debugging mode
-     */
-    if (server->debug()) {
-      setlogmask(LOG_UPTO(LOG_DEBUG));
-    } else {
-      setlogmask(LOG_UPTO(LOG_ERR));
-    }
     server->start();
   } catch (std::exception &e) {
     syslog(LOG_DAEMON | LOG_ERR, "%s", e.what());
   }
   delete server;
-  setlogmask(LOG_UPTO(LOG_DEBUG));
-  syslog(LOG_DAEMON | LOG_WARNING, "Stopping fakeDNS..");
-  closelog(); // Opening syslog connection
+  closelog(); // Closing syslog connection
   exit(EXIT_SUCCESS);
 }

@@ -2,10 +2,10 @@ BINARY_MTD64NG = mtd64-ng
 BINARY_FAKEDNS = fakedns
 OBJECTS_COMMON = pool.o dns.o
 OBJECTS_MTD64NG = main.o server.o query.o dnsclient.o
-OBJECTS_FAKEDNS = main.o server.o query.o
+OBJECTS_FAKEDNS = main.o server.o query.o config.o
 HEADERS_COMMON = pool.h dns.h
 HEADERS_MTD64NG = server.h query.h dnsclient.h dnssource.h
-HEADERS_FAKEDNS = server.h query.h
+HEADERS_FAKEDNS = server.h query.h config.h
 
 OBJECTS_MTD64NG := $(patsubst %.o,$(BINARY_MTD64NG)_%.o,$(OBJECTS_MTD64NG))
 OBJECTS_FAKEDNS := $(patsubst %.o,$(BINARY_FAKEDNS)_%.o,$(OBJECTS_FAKEDNS))
